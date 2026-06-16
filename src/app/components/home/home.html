@@ -1,0 +1,234 @@
+﻿<div class="page">
+  <section class="hero">
+    <div>
+      <p class="eyebrow">OEE evaluation</p>
+      <h1>OEE Dashboard</h1>
+      <p>
+        Enter production data to track availability, performance (vs target
+        cycle time), quality, and overall equipment effectiveness.
+      </p>
+    </div>
+    <div class="hero-summary" *ngIf="currentResult">
+      <span>Overall OEE</span>
+      <strong>{{ vm.formatMetric(currentResult.oee) }}</strong>
+      <small>{{ currentResult.interpretation }}</small>
+    </div>
+  </section>
+
+  <section class="grid-layout">
+    <!-- Excel Upload Card -->
+    <article class="card excel-card">
+      <header>
+        <h2>📊 Excel Automation</h2>
+        <p>Upload an Excel file to automatically calculate OEE</p>
+      </header>
+
+      <div class="excel-upload">
+        <div class="upload-area">
+          <input
+            type="file"
+            #fileInput
+            accept=".xlsx,.xls"
+            (change)="onFileSelected($event)"
+            style="display: none"
+          />
+          <button
+            class="btn-upload"
+            (click)="fileInput.click()"
+            [disabled]="isLoading"
+          >
+            {{ isLoading ? "⏳ Reading file..." : "📁 Choose Excel File" }}
+          </button>
+          <p class="upload-hint">Supports .xlsx and .xls files</p>
+        </div>
+
+        <button
+          class="btn-template"
+          (click)="downloadTemplate()"
+          title="Download OEE template"
+        >
+          📥 Download Template
+        </button>
+
+        <!-- File loaded message -->
+        <div *ngIf="uploadedFileName" class="file-loaded">
+          <p>
+            ✅ File: <strong>{{ uploadedFileName }}</strong>
+          </p>
+          <p>Found {{ excelData.length }} row(s) of data</p>
+
+          <!-- Row selector if multiple rows -->
+          <div *ngIf="excelData.length > 1" class="row-selector">
+            <label>Select Row:</label>
+            <select
+              [(ngModel)]="selectedRowIndex"
+              (change)="loadExcelRow(selectedRowIndex)"
+            >
+              <option *ngFor="let item of excelData; let i = index" [value]="i">
+                Row {{ i + 1 }}: {{ item.totalUnitsProduced }} units
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Error message -->
+        <div *ngIf="errorMessage" class="error-message">
+          ⚠️ {{ errorMessage }}
+        </div>
+      </div>
+    </article>
+
+    <article class="card card-panel">
+      <header>
+        <h2>Inputs</h2>
+        <p>Fill values below to calculate OEE automatically.</p>
+      </header>
+
+      <div class="field-group">
+        <label>Planned Production Time (minutes)</label>
+        <input
+          type="number"
+          min="0"
+          [value]="currentInput.plannedProductionTime || ''"
+          (input)="onInputChange('plannedProductionTime', $event.target.value)"
+          placeholder="e.g. 480"
+        />
+      </div>
+
+      <div class="field-group">
+        <label>Downtime (minutes)</label>
+        <input
+          type="number"
+          min="0"
+          [value]="currentInput.downtime || ''"
+          (input)="onInputChange('downtime', $event.target.value)"
+          placeholder="e.g. 45"
+        />
+      </div>
+
+      <div class="field-group">
+        <label>Total Units Produced</label>
+        <input
+          type="number"
+          min="0"
+          [value]="currentInput.totalUnitsProduced || ''"
+          (input)="onInputChange('totalUnitsProduced', $event.target.value)"
+          placeholder="e.g. 850"
+        />
+      </div>
+
+      <div class="field-group">
+        <label>Good Units (Quality)</label>
+        <input
+          type="number"
+          min="0"
+          [value]="currentInput.goodUnitsProduced || ''"
+          (input)="onInputChange('goodUnitsProduced', $event.target.value)"
+          placeholder="e.g. 820"
+        />
+      </div>
+
+      <div class="field-group">
+        <label>Target Cycle Time (seconds per unit)</label>
+        <input
+          type="number"
+          min="0"
+          step="0.1"
+          [value]="currentInput.targetCycleTime || ''"
+          (input)="onInputChange('targetCycleTime', $event.target.value)"
+          placeholder="e.g. 60"
+        />
+      </div>
+
+      <div class="formula-note">
+        <strong>OEE Formula</strong>
+        <p>OEE = Availability × Performance × Quality</p>
+        <p style="font-size: 0.85em; margin-top: 8px">
+          • Availability = Operating Time / Planned Time<br />
+          • Performance = Actual Rate / Target Rate<br />
+          • Quality = Good Units / Total Units
+        </p>
+      </div>
+    </article>
+
+    <article class="card metrics-card">
+      <header>
+        <h2>Result summary</h2>
+        <p>Review each KPI and identify improvement priorities.</p>
+      </header>
+
+      <div class="metrics-grid" *ngIf="currentResult">
+        <div class="metric-tile">
+          <span class="metric-label">Availability</span>
+          <strong>{{ vm.formatMetric(currentResult.availability) }}</strong>
+          <small>{{ vm.getStatusText(currentResult.availability) }}</small>
+          <div class="metric-bar">
+            <span [style.width]="currentResult.availability * 100 + '%'"></span>
+          </div>
+          <p class="metric-detail">
+            Operating: {{ currentResult.operatingTime }} /
+            {{ currentResult.plannedTime }} min
+          </p>
+        </div>
+
+        <div class="metric-tile">
+          <span class="metric-label">Performance</span>
+          <strong>{{ vm.formatMetric(currentResult.performance) }}</strong>
+          <small>{{ vm.getStatusText(currentResult.performance) }}</small>
+          <div class="metric-bar">
+            <span [style.width]="currentResult.performance * 100 + '%'"></span>
+          </div>
+          <p class="metric-detail">
+            Actual:
+            {{ currentResult.actualProductionRate.toFixed(2) }} units/min
+          </p>
+        </div>
+
+        <div class="metric-tile">
+          <span class="metric-label">Quality</span>
+          <strong>{{ vm.formatMetric(currentResult.quality) }}</strong>
+          <small>{{ vm.getStatusText(currentResult.quality) }}</small>
+          <div class="metric-bar">
+            <span [style.width]="currentResult.quality * 100 + '%'"></span>
+          </div>
+          <p class="metric-detail">
+            Good: {{ currentResult.goodUnitsProduced }} /
+            {{ currentResult.totalUnitsProduced }}
+          </p>
+        </div>
+      </div>
+    </article>
+
+    <article class="card chart-card">
+      <header>
+        <h2>Performance chart</h2>
+        <p>Comparative view of all three OEE pillars.</p>
+      </header>
+
+      <div class="chart-frame">
+        <canvas
+          baseChart
+          [data]="barChartData"
+          [options]="barChartOptions"
+          [type]="'bar'"
+        ></canvas>
+      </div>
+    </article>
+
+    <article class="card chart-card">
+      <header>
+        <h2>OEE distribution</h2>
+        <p>Proportion of each metric component.</p>
+      </header>
+
+      <div class="chart-frame doughnut-frame">
+        <canvas
+          baseChart
+          [data]="doughnutData"
+          [options]="doughnutOptions"
+          [type]="'doughnut'"
+        ></canvas>
+      </div>
+    </article>
+  </section>
+</div>
